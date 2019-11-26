@@ -32,6 +32,7 @@ import pandas as pd
 import random
 from sklearn.cluster import KMeans
 from sklearn.metrics import make_scorer
+from sklearn.neighbors import NearestNeighbors
 from sklearn.base import BaseEstimator
 from collections import Counter
 from sklearn.metrics import confusion_matrix, roc_auc_score
@@ -140,16 +141,24 @@ class ManiGPClassifier(BaseEstimator):
   def evaluate(self,individual, X, y, random_state):
     X_new = self.reduce(individual, X)
 
-    # Clustering of the reduced dataset.
-    centroids = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(X_new)
-    labels = centroids.labels_ # Every point is assigned to a certain cluster.
-    confusion_m = confusion_matrix(y, labels)
-    m = Munkres()
-    cost_m = make_cost_matrix(confusion_m)
-    target_cluster = m.compute(cost_m) # (target, cluster) assignment pairs.
-    cluster_target = {cluster : target for target, cluster in dict(target_cluster).items()}
-    y_pred = list(map(cluster_target.get, labels))    
-    return balanced_accuracy_score(y, y_pred)
+    if self.fitness_function == "kmeans":
+      # Clustering of the reduced dataset.
+      centroids = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(X_new)
+      labels = centroids.labels_ # Every point is assigned to a certain cluster.
+      confusion_m = confusion_matrix(y, labels)
+      m = Munkres()
+      cost_m = make_cost_matrix(confusion_m)
+      target_cluster = m.compute(cost_m) # (target, cluster) assignment pairs.
+      cluster_target = {cluster : target for target, cluster in dict(target_cluster).items()}
+      y_pred = list(map(cluster_target.get, labels))    
+      return balanced_accuracy_score(y, y_pred)
+    elif self.fitness_function == "nn":
+      # Nearest neighbor classifier.
+      neighbors = NearestNeighbors(n_neighbors=2).fit(X_new)
+      # indices[0] is the index of the nearest neighbor of a point with index 0 (excluding that point itself).
+      indices = neighbors.kneighbors(X_new, return_distance=False)[:,1]
+      y_pred = y[indices]
+      return balanced_accuracy_score(y, y_pred)
 
 
 
@@ -167,7 +176,7 @@ class ManiGPClassifier(BaseEstimator):
 
 
 #  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 5, n_components = 2, random_state=3319):
-  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319):
+  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319, fitness_function="kmeans"):
     self.mutpb=mutpb
     self.cxpb=cxpb
     self.pop_size=pop_size
@@ -178,6 +187,7 @@ class ManiGPClassifier(BaseEstimator):
     self.max_tree_height = max_tree_height
     self.n_components = n_components
     self.random_state=random_state
+    self.fitness_function = fitness_function
     random.seed(random_state)
 
   def fit(self,X,y):
@@ -237,14 +247,23 @@ class ManiGPClassifier(BaseEstimator):
     target_cluster = m.compute(cost_m) # (target, cluster) assignment pairs.
     self.mapping = {cluster : target for target, cluster in dict(target_cluster).items()}
 
+    # Nearest neighbors.
+    self.neighbors = NearestNeighbors(n_neighbors=1).fit(X_new)
+    self.y_train = y
   def predict(self,X_test):
     #transforming test set using manifold learning method
     X_trans=self.reduce(self.model,X_test)
 
-    #assigning each of the points to the closest centroid
-    labels = self.centroids.predict(X_trans)
-    y_pred = list(map(self.mapping.get, labels))
-    return y_pred
+    if self.fitness_function == "kmeans":
+      #assigning each of the points to the closest centroid
+      labels = self.centroids.predict(X_trans)
+      y_pred = list(map(self.mapping.get, labels))
+      return y_pred
+    elif self.fitness_function == "nn":
+      indices = self.neighbors.kneighbors(X_trans, return_distance=False)
+      y_pred = (self.y_train)[indices].reshape((len(X_trans),))
+      return y_pred
+
 
 
 
