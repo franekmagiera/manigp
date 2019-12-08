@@ -176,7 +176,7 @@ class ManiGPClassifier(BaseEstimator):
 
 
 #  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 5, n_components = 2, random_state=3319):
-  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319, fitness_function="kmeans"):
+  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319, fitness_function="kmeans", predictor="kmeans"):
     self.mutpb=mutpb
     self.cxpb=cxpb
     self.pop_size=pop_size
@@ -188,6 +188,10 @@ class ManiGPClassifier(BaseEstimator):
     self.n_components = n_components
     self.random_state=random_state
     self.fitness_function = fitness_function
+    self.predictor = predictor
+    self.rejected = 0 # Number of rejected trees.
+    self.cx_count = 0 # Numer of crossovers.
+    self.mut_count = 0 # Number of mutations.
     random.seed(random_state)
 
   def fit(self,X,y):
@@ -203,6 +207,9 @@ class ManiGPClassifier(BaseEstimator):
     population = self.toolbox.population(self.pop_size)
     best_individuals = []
     self.n_clusters=len(Counter(y))
+    self.rejected = 0
+    self.cx_count = 0
+    self.mut_count = 0
 
     for g in range(self.n_iter):
       population = self.toolbox.selectBest(population, self.pop_size)
@@ -210,23 +217,43 @@ class ManiGPClassifier(BaseEstimator):
       random.shuffle(population)
       for parent1, parent2 in zip(population[::2], population[1::2]):
         if random.random() < self.cxpb:
+          self.cx_count += 1
           child1 = self.toolbox.clone(parent1)
           child2 = self.toolbox.clone(parent2)
           for i in range(self.n_components):
             self.toolbox.mate(child1[i], child2[i])
-          if get_height(child1[0]) <= self.max_tree_height and get_height(child1[1]) <= self.max_tree_height:
+          reject = False
+          for i in range(self.n_components):
+            if get_height(child1[i]) > self.max_tree_height:
+              reject = True
+              self.rejected += 1
+              break
+          if not reject:
             del child1.fitness.values
             population.append(child1)
-          if get_height(child2[0]) <= self.max_tree_height and get_height(child2[1]) <= self.max_tree_height:
+          reject = False
+          for i in range(self.n_components):
+            if get_height(child2[i]) > self.max_tree_height:
+              reject = True
+              self.rejected += 1
+              break
+          if not reject:
             del child2.fitness.values
             population.append(child2)
 
       for individual in population.copy():
         if random.random() < self.mutpb:
+          self.mut_count += 1
           mutant = self.toolbox.clone(individual)
           for i in range(self.n_components):
             self.toolbox.mutate(mutant[i])
-          if get_height(mutant[0]) <= self.max_tree_height and get_height(mutant[1]) <= self.max_tree_height:
+          reject = False
+          for i in range(self.n_components):
+            if get_height(mutant[i]) > self.max_tree_height:
+              reject = True
+              self.rejected += 1
+              break
+          if not reject:
             del mutant.fitness.values
             population.append(mutant)
 
