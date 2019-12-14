@@ -30,6 +30,7 @@ import utils.operators as ops # From hibachi.
 from utils.metrics import balanced_accuracy_score
 import pandas as pd
 import random
+from scipy.stats import mode
 from sklearn.cluster import KMeans
 from sklearn.metrics import make_scorer
 from sklearn.neighbors import NearestNeighbors
@@ -132,7 +133,11 @@ tfs = lambda string, pset : gp.PrimitiveTree.from_string(string, pset)
 # Get hight of a tree.
 get_height = lambda tree : op.attrgetter('height')(tree)
 
-
+def check_in_which_slice(angle, n, slices):
+    for i in range(n):
+        if slices[i][0] <= angle < slices[i][1]:
+            return i
+    return n-1
 
 
 class ManiGPClassifier(BaseEstimator):
@@ -153,12 +158,24 @@ class ManiGPClassifier(BaseEstimator):
       y_pred = list(map(cluster_target.get, labels))    
       return balanced_accuracy_score(y, y_pred)
     elif self.fitness_function == "nn":
-      # Nearest neighbor classifier.
-      neighbors = NearestNeighbors(n_neighbors=2).fit(X_new)
-      # indices[0] is the index of the nearest neighbor of a point with index 0 (excluding that point itself).
-      indices = neighbors.kneighbors(X_new, return_distance=False)[:,1]
-      y_pred = y[indices]
+      # n_clusters is equal to the number of classes.
+      # n_neighbors is always odd and bigger than number of classes. This way classification is unambiguous.
+      
+      # n_neighbors = self.n_clusters + (1 if self.n_clusters % 2 == 0 else 2)
+      n_neighbors = min(Counter(y).values()) + (1 if min(Counter(y).values()) % 2 == 0 else 2)
+      # n_neighbors + 1 because the class of the point itself is not taken into account.
+      neighbors = NearestNeighbors(n_neighbors=n_neighbors+1).fit(X_new)
+      nearest_neighbors = neighbors.kneighbors(X_new, return_distance=False)[:,1:]
+      classes = y[nearest_neighbors]
+      y_pred = mode(classes, axis=1)[0].reshape(len(y),)
       return balanced_accuracy_score(y, y_pred)
+    elif self.fitness_function == "angles":
+      angles = np.apply_along_axis(lambda row: math.atan2(row[1], row[0]), axis=1, arr=X_new)
+      # Mapping from (-pi,pi) to (0, 2*pi)
+      angles = (2*np.pi + angles) * (angles < 0) + angles*(angles > 0)
+      y_pred = list(map(lambda angle: check_in_which_slice(angle, self.n_clusters, self.slices), angles))
+      return balanced_accuracy_score(y, y_pred)
+
 
 
 
@@ -207,6 +224,7 @@ class ManiGPClassifier(BaseEstimator):
     population = self.toolbox.population(self.pop_size)
     best_individuals = []
     self.n_clusters=len(Counter(y))
+    self.slices = [(i*2*math.pi/self.n_clusters, (i+1)*2*math.pi/self.n_clusters) for i in range(self.n_clusters)]
     self.rejected = 0
     self.cx_count = 0
     self.mut_count = 0
@@ -281,12 +299,12 @@ class ManiGPClassifier(BaseEstimator):
     #transforming test set using manifold learning method
     X_trans=self.reduce(self.model,X_test)
 
-    if self.fitness_function == "kmeans":
+    if self.predictor == "kmeans":
       #assigning each of the points to the closest centroid
       labels = self.centroids.predict(X_trans)
       y_pred = list(map(self.mapping.get, labels))
       return y_pred
-    elif self.fitness_function == "nn":
+    elif self.predictor == "nn":
       indices = self.neighbors.kneighbors(X_trans, return_distance=False)
       y_pred = (self.y_train)[indices].reshape((len(X_trans),))
       return y_pred
