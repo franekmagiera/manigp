@@ -135,9 +135,10 @@ get_height = lambda tree : op.attrgetter('height')(tree)
 
 def check_in_which_slice(angle, n, slices):
     for i in range(n):
-        if slices[i][0] <= angle < slices[i][1]:
+        if slices[i][0] < angle < slices[i][1]:
             return i
-    return n-1
+    # Points on the borders are assigned a different label in order to handicap balanced accuracy score.
+    return n
 
 
 class ManiGPClassifier(BaseEstimator):
@@ -160,9 +161,7 @@ class ManiGPClassifier(BaseEstimator):
     elif self.fitness_function == "nn":
       # n_clusters is equal to the number of classes.
       # n_neighbors is always odd and bigger than number of classes. This way classification is unambiguous.
-      
-      # n_neighbors = self.n_clusters + (1 if self.n_clusters % 2 == 0 else 2)
-      n_neighbors = min(Counter(y).values()) + (1 if min(Counter(y).values()) % 2 == 0 else 2)
+      n_neighbors = self.n_clusters + (1 if self.n_clusters % 2 == 0 else 2)
       # n_neighbors + 1 because the class of the point itself is not taken into account.
       neighbors = NearestNeighbors(n_neighbors=n_neighbors+1).fit(X_new)
       nearest_neighbors = neighbors.kneighbors(X_new, return_distance=False)[:,1:]
