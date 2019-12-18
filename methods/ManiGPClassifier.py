@@ -36,7 +36,7 @@ from sklearn.metrics import make_scorer
 from sklearn.neighbors import NearestNeighbors
 from sklearn.base import BaseEstimator
 from collections import Counter
-from sklearn.metrics import confusion_matrix, roc_auc_score
+from sklearn.metrics import confusion_matrix, roc_auc_score, silhouette_score, adjusted_rand_score, calinski_harabasz_score
 from utils.munkres import Munkres, make_cost_matrix
 
 
@@ -147,21 +147,32 @@ class ManiGPClassifier(BaseEstimator):
   def evaluate(self,individual, X, y, random_state):
     X_new = self.reduce(individual, X)
 
-    if self.fitness_function == "kmeans":
+    if self.fitness_function in ["kmeans", "silhouette", "adjusted_rand_score", "calinski_harabasz"]:
       # Clustering of the reduced dataset.
       centroids = KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(X_new)
       labels = centroids.labels_ # Every point is assigned to a certain cluster.
-      confusion_m = confusion_matrix(y, labels)
-      m = Munkres()
-      cost_m = make_cost_matrix(confusion_m)
-      target_cluster = m.compute(cost_m) # (target, cluster) assignment pairs.
-      cluster_target = {cluster : target for target, cluster in dict(target_cluster).items()}
-      y_pred = list(map(cluster_target.get, labels))    
-      return balanced_accuracy_score(y, y_pred)
+      if self.fitness_function == "silhouette":
+        if len(Counter(labels)) == 1:
+          return -1
+        else: 
+          return silhouette_score(X_new, labels)
+      elif self.fitness_function == "adjusted_rand_score":
+        return adjusted_rand_score(y, labels)
+      elif self.fitness_function == "calinski_harabasz":
+        if len(Counter(labels)) == 1:
+          return -1
+        else:
+          return calinski_harabasz_score(X_new, labels)
+      elif self.fitness_function == "kmeans":
+        confusion_m = confusion_matrix(y, labels)
+        m = Munkres()
+        cost_m = make_cost_matrix(confusion_m)
+        target_cluster = m.compute(cost_m) # (target, cluster) assignment pairs.
+        cluster_target = {cluster : target for target, cluster in dict(target_cluster).items()}
+        y_pred = list(map(cluster_target.get, labels))    
+        return balanced_accuracy_score(y, y_pred)
     elif self.fitness_function == "nn":
-      # n_clusters is equal to the number of classes.
-      # n_neighbors is always odd and bigger than number of classes. This way classification is unambiguous.
-      n_neighbors = self.n_clusters + (1 if self.n_clusters % 2 == 0 else 2)
+      n_neighbors = self.k
       # n_neighbors + 1 because the class of the point itself is not taken into account.
       neighbors = NearestNeighbors(n_neighbors=n_neighbors+1).fit(X_new)
       nearest_neighbors = neighbors.kneighbors(X_new, return_distance=False)[:,1:]
@@ -192,7 +203,7 @@ class ManiGPClassifier(BaseEstimator):
 
 
 #  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 5, n_components = 2, random_state=3319):
-  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319, fitness_function="kmeans", predictor="kmeans"):
+  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319, fitness_function="kmeans", predictor="kmeans", k=5):
     self.mutpb=mutpb
     self.cxpb=cxpb
     self.pop_size=pop_size
@@ -208,6 +219,7 @@ class ManiGPClassifier(BaseEstimator):
     self.rejected = 0 # Number of rejected trees.
     self.cx_count = 0 # Numer of crossovers.
     self.mut_count = 0 # Number of mutations.
+    self.k = k # Neighborhood size for learning. For prediction 1-nn is always used.
     random.seed(random_state)
 
   def fit(self,X,y):
@@ -318,10 +330,9 @@ est = ManiGPClassifier()
 
 hyper_params=[
    {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['nn']},
-   {'cxpb':[0.5], 'mutpb':[0.5], 'fitness_function' : ['nn']},
-   {'cxpb':[0.9], 'mutpb':[0.1], 'fitness_function' : ['nn']},
    {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['angles']},
-   {'cxpb':[0.5], 'mutpb':[0.5], 'fitness_function' : ['angles']},
-   {'cxpb':[0.9], 'mutpb':[0.1], 'fitness_function' : ['angles']},
+   {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['silhouette']},
+   {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['adjusted_rand_score']},
+   {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['calinski_harabasz']},
 ]
 
