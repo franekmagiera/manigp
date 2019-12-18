@@ -66,9 +66,11 @@ def evaluate_model(dataset, save_file, random_state, est, hyper_params):
             test_bal_accuracy = balanced_accuracy_score(y_test, clf.predict(X_test))
 
             model=[]
+            best_fitness=0
 
             if(est_name=='ManiGPClassifier'):
               model=[str(clf.model[0]), str(clf.model[1])]
+              best_fitness=clf.best_fitness
             else:
               model=['','']
 
@@ -82,7 +84,8 @@ def evaluate_model(dataset, save_file, random_state, est, hyper_params):
                    'runtime':  runtime,
                    'parameters': clf.get_params(),
                    'model1' : model[0],
-                   'model2' : model[1]}
+                   'model2' : model[1],
+                   'best_fitness' : best_fitness}
                    ]
             # print results
             df = pd.DataFrame.from_records(data=results,columns=results[0].keys())

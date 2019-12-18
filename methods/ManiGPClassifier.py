@@ -281,6 +281,8 @@ class ManiGPClassifier(BaseEstimator):
 
 #      population = self.toolbox.selectTournament(population, self.tourn_size)
 
+    best_individuals.append(self.toolbox.selectBest(population, 1)[0])
+    self.best_fitness = best_individuals[-1].fitness.values[0]
     self.model=best_individuals[-1]
     X_new = self.reduce(self.model, X)
     self.centroids=KMeans(n_clusters=self.n_clusters, random_state=self.random_state).fit(X_new)
@@ -315,8 +317,11 @@ class ManiGPClassifier(BaseEstimator):
 est = ManiGPClassifier()
 
 hyper_params=[
-   {'cxpb':[0.1], 'mutpb':[0.9]},
-   {'cxpb':[0.5], 'mutpb':[0.5]},
-   {'cxpb':[0.9], 'mutpb':[0.1]},
+   {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['nn']},
+   {'cxpb':[0.5], 'mutpb':[0.5], 'fitness_function' : ['nn']},
+   {'cxpb':[0.9], 'mutpb':[0.1], 'fitness_function' : ['nn']},
+   {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['angles']},
+   {'cxpb':[0.5], 'mutpb':[0.5], 'fitness_function' : ['angles']},
+   {'cxpb':[0.9], 'mutpb':[0.1], 'fitness_function' : ['angles']},
 ]
 
