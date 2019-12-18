@@ -141,7 +141,7 @@ def check_in_which_slice(angle, n, slices):
     return n
 
 
-class ManiGPClassifier(BaseEstimator):
+class ManiGPClassifierARS(BaseEstimator):
 
 
   def evaluate(self,individual, X, y, random_state):
@@ -203,7 +203,7 @@ class ManiGPClassifier(BaseEstimator):
 
 
 #  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 5, n_components = 2, random_state=3319):
-  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319, fitness_function="kmeans", predictor="kmeans", k=5):
+  def __init__(self, mutpb=0.9, cxpb=0.1, pop_size=100, n_iter=500, tourn_size=7, weights = (1.0,),min_tree_height = 1, max_tree_height = 4, n_components = 2, random_state=3319, fitness_function="adjusted_rand_score", predictor="kmeans", k=5):
     self.mutpb=mutpb
     self.cxpb=cxpb
     self.pop_size=pop_size
@@ -326,9 +326,9 @@ class ManiGPClassifier(BaseEstimator):
 
 
 
-est = ManiGPClassifier()
+est = ManiGPClassifierARS()
 
 hyper_params=[
-   {'cxpb':[0.1], 'mutpb':[0.9]},
+   {'cxpb':[0.1], 'mutpb':[0.9], 'fitness_function' : ['adjusted_rand_score']},
 ]
 
