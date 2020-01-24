@@ -13,3 +13,7 @@ python evaluate_model.py -ml GPClassifier datasets.txt -save_file results.txt -s
 The hyperparameters for each classifier are located in methods/NameOfClassifier.py. The file requires definition of hyper_params, as well as initialization of a classifier as est.
 
 The tests were run on the datasets from PMLB repository: https://github.com/EpistasisLab/penn-ml-benchmarks/
+
+##
+
+forked from https://github.com/athril/manigp
